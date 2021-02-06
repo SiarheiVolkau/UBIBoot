@@ -19,6 +19,7 @@
 #include "jz4740-cpm.h"
 #include "jz4740-emc.h"
 #include "jz4740-gpio.h"
+#include "jz4740-lcd.h"
 
 #define CDIV 1
 #define HDIV 3
@@ -52,6 +53,10 @@ static void pll_init(void)
 
 	/* Init USB Host clock, pllout2 must be n*48MHz */
 	REG_CPM_UHCCDR = pllout2 / 48000000 - 1;
+#ifdef USE_SLCD_UC8230
+	/* Init LCD clock to 20MHz (10MHz effective dot clock) */
+	REG_CPM_LPCDR = pllout2 / 20000000 - 1;
+#endif
 
 #define NF (CFG_CPU_SPEED * 2 / CFG_EXTAL)
 	plcr1 = ((NF - 2) << CPM_CPPCR_PLLM_BIT) | /* FD */
@@ -213,6 +218,227 @@ unsigned int get_memory_size(void)
 				(2 - SDRAM_BANK4) + 1);
 }
 
+/* preparing LCD for use in Linux */
+#ifdef USE_SLCD_UC8230
+
+#define CMD_END   0xFFFF
+#define CMD_DELAY 0xFFFE
+static uint16_t UC8230_regValues[] = {
+	//After pin Reset wait at least 100ms
+	CMD_DELAY, 100, //at least 100ms
+	0x0046, 0x0002, //MTP Disable
+	0x0010, 0x1590, //SAP=1, BT=5, APE=1, AP=1
+	0x0011, 0x0227, //DC1=2, DC0=2, VC=7
+	0x0012, 0x80ff, //P5VMD=1, PON=7, VRH=15
+	0x0013, 0x9F31, //VDV=31, VCM=49
+	CMD_DELAY, 10, //at least 10ms
+	0x0003, 0x1038, //set GRAM writing direction & BGR=1
+	0x0060, 0xa700, //GS; gate scan: start position & drive line Q'ty - mirrors across vertical center line
+	0x0061, 0x0001, //REV, NDL, VLE - mandatory to have normal colors
+	0x0020, 0x0000, //GRAM horizontal address
+	0x0021, 0x0000, //GRAM vertical address
+	0x0050, 0x0000, // write window y-start 0
+	0x0051, 240 -1, // write window y-end 240-1 (whole y size)
+	0x0052, 0x0000, // write window x-start 0
+	0x0053, 320 -1, // write window x-end 320-1 (whole x size)
+	0x0080, 0x0000,
+	0x0081, 0x0000,
+	0x0082, 0x0000,
+	0x0083, 0x0000,
+	0x0084, 0x0000,
+	0x0085, 0x0000,
+	0x0092, 0x0200,
+	0x0093, 0x0303,
+	0x0090, 0x0010, //set clocks/Line
+	0x000C, 0x0000,
+	0x0000, 0x0001,
+	CMD_DELAY, 200, // Delay 200 ms
+	0x0007, 0x0173, //Display on setting
+	CMD_END,
+};
+
+static void write_slcd_ir(uint16_t reg)
+{
+	// set data lanes as gpio output
+	__gpio_as_output_mask(GPIOD, 0xff);
+	// set RS pin into `cmd` (low)
+	__gpio_clear_pin(GPIOD, 19);
+	// set all data lanes as 0x00
+	__gpio_clear_pin_mask(GPIOD, 0xFF);
+	__gpio_set_pin_mask(GPIOD, reg >> 8);
+	// issue #WR twice
+	udelay(10);
+	__gpio_clear_pin(GPIOD, 20);
+	udelay(10);
+	__gpio_set_pin(GPIOD, 20);
+
+	__gpio_clear_pin_mask(GPIOD, 0xFF);
+	__gpio_set_pin_mask(GPIOD, reg & 0xFF);
+	udelay(10);
+	__gpio_clear_pin(GPIOD, 20);
+	udelay(10);
+	__gpio_set_pin(GPIOD, 20);
+
+	udelay(10);
+	// set RS pin into `data` (high)
+	__gpio_set_pin(GPIOD, 19);
+}
+
+static void write_slcd_reg(uint16_t reg, uint16_t val)
+{
+	write_slcd_ir(reg);
+
+	__gpio_clear_pin_mask(GPIOD, 0xFF);
+	__gpio_set_pin_mask(GPIOD, val >> 8);
+	udelay(10);
+	__gpio_clear_pin(GPIOD, 20);
+	udelay(10);
+	__gpio_set_pin(GPIOD, 20);
+
+	__gpio_clear_pin_mask(GPIOD, 0xFF);
+	__gpio_set_pin_mask(GPIOD, val & 0xFF);
+	udelay(10);
+	__gpio_clear_pin(GPIOD, 20);
+	udelay(10);
+	__gpio_set_pin(GPIOD, 20);
+	udelay(10);
+}
+
+static void read_slcd_chip_id(void)
+{
+	uint16_t chip_id = 0;
+
+	// set data lanes as gpio output
+	__gpio_as_output_mask(GPIOD, 0xff);
+	// set RS pin into `cmd` (low)
+	__gpio_clear_pin(GPIOD, 19);
+	// set all data lanes as 0x00
+	__gpio_clear_pin_mask(GPIOD, 0xFF);
+	// issue #WR twice
+	udelay(10);
+	__gpio_clear_pin(GPIOD, 20);
+	udelay(10);
+	__gpio_set_pin(GPIOD, 20);
+	udelay(10);
+	__gpio_clear_pin(GPIOD, 20);
+	udelay(10);
+	__gpio_set_pin(GPIOD, 20);
+	udelay(10);
+
+	// set data lanes as gpio input
+	__gpio_as_input_mask(GPIOD, 0xff);
+	// set RS pin into `data` (high)
+	__gpio_set_pin(GPIOD, 19);
+	// issue #RD
+	udelay(10);
+	__gpio_clear_pin(GPIOD, 18);
+	udelay(10);
+	// read the byte
+	chip_id = (REG32(GPIO_PXPIN(GPIOD)) & (0xff)) << 8;
+	// release #RD
+	__gpio_set_pin(GPIOD, 18);
+	// issue #RD
+	udelay(10);
+	__gpio_clear_pin(GPIOD, 18);
+	udelay(10);
+	// read the byte
+	chip_id |= (REG32(GPIO_PXPIN(GPIOD)) & (0xff));
+	// release #RD
+	__gpio_set_pin(GPIOD, 18);
+	// set data lanes as gpio output
+	__gpio_as_output_mask(GPIOD, 0xff);
+
+	SERIAL_PUTS_ARGH("LCD controller ID: ", chip_id, "\n");
+}
+
+static void clear_slcd_screen(void)
+{
+	int i;
+
+	/* put the 0x00 to all pixels  */
+	__gpio_clear_pin_mask(GPIOD, 0xFF);
+
+	for (i = 0; i < 240 * 320 * 2; i++) {
+		__gpio_clear_pin(GPIOD, 20);
+		__gpio_set_pin(GPIOD, 20);
+	}
+
+	// restore WDR position
+	__gpio_clear_pin(GPIOD, 19);
+	udelay(10000);
+	__gpio_set_pin(GPIOD, 19);
+}
+
+// Emulating an i80 8-bit bus via GPIO
+// as we need read chip id back.
+// Ingenic SLCD controller doesn't support reading.
+static void init_smart_lcd_8230(void)
+{
+	const uint16_t *pos = UC8230_regValues;
+
+	/* #RST pin PD21 */
+	__gpio_set_pin(GPIOD, 21);
+	__gpio_as_output(GPIOD, 21);
+
+	/* CS pin PC13 */
+	__gpio_clear_pin(GPIOC, 13);
+	__gpio_as_output(GPIOC, 13);
+	/* RS pin */
+	__gpio_set_pin(GPIOD, 19); // `set` for `data` op
+	__gpio_as_output(GPIOD, 19);
+	/* #WR pin */
+	__gpio_set_pin(GPIOD, 20);
+	__gpio_as_output(GPIOD, 20);
+	/* #RD pin */
+	__gpio_set_pin(GPIOD, 18);
+	__gpio_as_output(GPIOD, 18);
+
+	/* DATA 7..0 */
+	__gpio_as_output_mask(GPIOD, 0xff);
+
+	// issue reset
+	__gpio_clear_pin(GPIOD, 21);
+	udelay(10000);
+	__gpio_set_pin(GPIOD, 21);
+	read_slcd_chip_id();
+
+	while (pos[0] != CMD_END) {
+		if (pos[0] == CMD_DELAY) {
+			udelay(pos[1] * 1000);
+		} else {
+			write_slcd_reg(pos[0], pos[1]);
+		}
+		pos += 2;
+	}
+
+	write_slcd_ir(0x22); // set pointer to WDR
+	clear_slcd_screen();
+
+	__gpio_set_pin(GPIOC, 13);
+
+	/* Preparing Smart LCD controller to work in Linux */
+
+	/* RS pin */
+	__gpio_as_func(GPIOD, 19, 2);
+	/* #WR pin */
+	__gpio_as_func(GPIOD, 20, 2);
+	/* #RD pin */
+	__gpio_as_func(GPIOD, 18, 2);
+
+	/* DATA 7..0 */
+	__gpio_as_func_mask(GPIOD, 0xff, 2);
+
+	// Mux Smart pins, enable LCM mode
+	LCD_REG_CFG = BIT(31) | (0x0d) | BIT(23) | BIT(22) | BIT(21) | BIT(20);
+	LCD_REG_SCFG = 0x00004d02;
+	LCD_REG_SCTL = BIT(0);
+	while (LCD_REG_SSTAT != 0);
+
+
+	__gpio_clear_pin(GPIOC, 13);
+}
+#endif
+
 void board_init(void)
 {
 #ifdef USE_NAND
@@ -239,6 +465,12 @@ void board_init(void)
 	REG_CPM_CLKGR &= ~BIT(0);
 
 	serial_init();
+#endif
+#ifdef USE_SLCD_UC8230
+	/* ungate the LCD/SLCD clock */
+	REG_CPM_CLKGR &= ~BIT(9);
+
+	init_smart_lcd_8230();
 #endif
 #ifdef BKLIGHT_ON
 	__gpio_set_pin(GPIOC, 15);
