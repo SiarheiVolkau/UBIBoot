@@ -213,20 +213,35 @@ void c_main(void)
 	 * miss and therefore cause no evictions.
 	 */
 
-	mmc_inited = !mmc_init(MMC_ID);
-	if (mmc_inited) {
-		if (mmc_load_kernel(
-				MMC_ID, (void *) (KSEG1 + LD_ADDR), alt_kernel,
-				&exec_addr) == 1)
-			set_alt_param();
-
-		if (exec_addr) {
-#if PASS_ROOTFS_PARAMS
-			kernel_params[PARAM_ROOTDEV] =
-					"root=/dev/mmcblk0p1";
-			kernel_params[PARAM_ROOTTYPE] = "rootfstype=vfat";
+#ifdef TRY_BOTH_MMCS
+	for (int mmc = 1; mmc >= 0; mmc--) {
+		SERIAL_PUTS_ARGI("Trying to boot from SD", mmc, ".\n");
+#else
+	{
+		uint8_t mmc = MMC_ID;
 #endif
+		mmc_inited = !mmc_init(mmc);
+		if (mmc_inited) {
+			if (mmc_load_kernel(
+					mmc, (void *) (KSEG1 + LD_ADDR), alt_kernel,
+					&exec_addr) == 1)
+				set_alt_param();
+
+			if (exec_addr) {
+#if PASS_ROOTFS_PARAMS
+				kernel_params[PARAM_ROOTDEV] =
+						"root=/dev/mmcblk0p1";
+				kernel_params[PARAM_ROOTTYPE] = "rootfstype=vfat";
+#endif
+			}
 		}
+#ifdef TRY_BOTH_MMCS
+		if (!mmc_inited || !exec_addr) {
+			SERIAL_PUTS_ARGI("Unable to boot from SD", mmc, ".\n");
+		} else {
+			break;
+		}
+#endif
 	}
 
 	if (!mmc_inited || !exec_addr) {

@@ -6,6 +6,7 @@
 GC_FUNCTIONS = True
 USE_SERIAL = True
 BKLIGHT_ON = True
+TRY_BOTH_MMCS = True
 # USE_NAND = True
 # USE_UBI = True
 # STAGE1_ONLY = True

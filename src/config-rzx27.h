@@ -14,7 +14,7 @@
 #define LOG_BAUDRATE    57600
 
 /* MMC parameters */
-#define MMC_ID          1
-#define MMC_1BIT        1
+#define MMC0_4BIT       1
+#define MMC1_4BIT       0
 #define PAGE_SIZE       512 /* 512, 2048 or 4096 */
 #define PAGE_PER_BLOCK  1

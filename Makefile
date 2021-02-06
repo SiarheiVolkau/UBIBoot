@@ -64,6 +64,10 @@ else
 endif
 endif
 
+ifdef TRY_BOTH_MMCS
+	CPPFLAGS += -DTRY_BOTH_MMCS
+endif
+
 ifdef USE_UBI
 	CPPFLAGS += -DUSE_UBI
 	OBJS += ubi.o

@@ -35,13 +35,30 @@
 #define ACMD_SET_BUS_WIDTH	6
 #define ACMD_SD_SEND_OP_COND	41
 
-#ifndef MMC_1BIT
-#define CMDAT_4BIT		BIT(10)
-#define MMC_BUS_WIDTH		0x2
+#if defined(MMC0_4BIT) && (MMC0_4BIT == 1)
+#define CMDAT_4BIT_MMC0		BIT(10)
+#define MMC0_BUS_WIDTH		0x02
+#elif defined(MMC_ID) && (MMC_ID == 0) && (!defined(MMC_1BIT) || MMC_1BIT == 0)
+#define CMDAT_4BIT_MMC0		BIT(10)
+#define MMC0_BUS_WIDTH		0x02
 #else
-#define CMDAT_4BIT		0
-#define MMC_BUS_WIDTH		0x0
+#define CMDAT_4BIT_MMC0		0
+#define MMC0_BUS_WIDTH		0x00
 #endif
+
+#if defined(MMC1_4BIT) && (MMC1_4BIT == 1)
+#define CMDAT_4BIT_MMC1		BIT(10)
+#define MMC1_BUS_WIDTH		0x02
+#elif defined(MMC_ID) && (MMC_ID == 1) && (!defined(MMC_1BIT) || MMC_1BIT == 0)
+#define CMDAT_4BIT_MMC1		BIT(10)
+#define MMC1_BUS_WIDTH		0x02
+#else
+#define CMDAT_4BIT_MMC1		0
+#define MMC1_BUS_WIDTH		0x00
+#endif
+
+#define CMDAT_4BIT(mmcid)	((mmcid) ? CMDAT_4BIT_MMC1 : CMDAT_4BIT_MMC0)
+#define MMC_BUS_WIDTH(mmcid)	((mmcid) ? MMC1_BUS_WIDTH : MMC0_BUS_WIDTH)
 
 enum response {
 	MSC_NO_RESPONSE,
@@ -106,16 +123,16 @@ void mmc_start_block(unsigned int id, uint32_t src, uint32_t num_blocks)
 {
 	uint16_t resp[MSC_RESPONSE_MAX];
 
-	mmc_cmd(id, CMD_SET_BLOCKLEN, MMC_SECTOR_SIZE, CMDAT_4BIT, MSC_RESPONSE_R1, resp);
+	mmc_cmd(id, CMD_SET_BLOCKLEN, MMC_SECTOR_SIZE, CMDAT_4BIT(id), MSC_RESPONSE_R1, resp);
 
 	jz_mmc_stop_clock(id);
 	__msc_set_nob(id, num_blocks);
 	__msc_set_blklen(id, MMC_SECTOR_SIZE);
 
 	if (is_sdhc) 
-		mmc_cmd(id, CMD_READ_MULTIPLE, src, CMDAT_4BIT | CMDAT_DATA_EN, MSC_RESPONSE_R1, resp);
+		mmc_cmd(id, CMD_READ_MULTIPLE, src, CMDAT_4BIT(id) | CMDAT_DATA_EN, MSC_RESPONSE_R1, resp);
 	else
-		mmc_cmd(id, CMD_READ_MULTIPLE, src * MMC_SECTOR_SIZE, CMDAT_4BIT | CMDAT_DATA_EN, MSC_RESPONSE_R1, resp);
+		mmc_cmd(id, CMD_READ_MULTIPLE, src * MMC_SECTOR_SIZE, CMDAT_4BIT(id) | CMDAT_DATA_EN, MSC_RESPONSE_R1, resp);
 }
 
 void mmc_stop_block(unsigned int id)
@@ -246,7 +263,7 @@ int mmc_init(unsigned int id)
 
 	/* Switch to 4-bit mode */
 	mmc_cmd(id, CMD_APP_CMD, rca, 0x0, MSC_RESPONSE_R1, resp);
-	mmc_cmd(id, ACMD_SET_BUS_WIDTH, MMC_BUS_WIDTH, CMDAT_4BIT, MSC_RESPONSE_R1, resp);
+	mmc_cmd(id, ACMD_SET_BUS_WIDTH, MMC_BUS_WIDTH(id), CMDAT_4BIT(id), MSC_RESPONSE_R1, resp);
 
 	return 0;
 }
