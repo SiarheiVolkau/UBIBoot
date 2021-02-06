@@ -25,7 +25,7 @@ CFLAGS	+= $(CFLAGS_all)
 CPPFLAGS := -DBOARD_$(BOARD) -DJZ_VERSION=$(JZ_VERSION)
 LDFLAGS := -nostdlib -EL
 
-ifneq ($(findstring $(JZ_VERSION),JZ4740 JZ4750),)
+ifneq ($(findstring $(JZ_VERSION),JZ4740 JZ4750 JZ4725),)
 LDFLAGS += -T ldscripts/target-jz4740.ld
 endif
 
