@@ -3,14 +3,18 @@ ENTRY(_start)
 
 MEMORY
 {
-	low8k	: ORIGIN = 0x80000000 , LENGTH = 0x2000
+	pre_mbr	: ORIGIN = 0x80000000 , LENGTH =    440
+	low8k	: ORIGIN = 0x80000200 , LENGTH = 0x1E00
 	high8k	: ORIGIN = 0x80002000 , LENGTH = 0x2000
 }
 
 SECTIONS
 {
-	.text : {
+	.startup : {
 		*(.text.1)
+	} > pre_mbr
+
+	.text : {
 		*(.text.0)
 	} > low8k
 
