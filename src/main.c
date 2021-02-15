@@ -51,6 +51,7 @@ enum {
 	PARAM_ROOTDEV,
 	PARAM_ROOTTYPE,
 	PARAM_ROOTWAIT,
+	PARAM_ROOTFLAGS,
 #endif
 #ifdef SYSPART_INIT
 	PARAM_READONLY,
@@ -101,6 +102,7 @@ static char *kernel_params[] = {
 	[PARAM_ROOTDEV] = "",
 	[PARAM_ROOTTYPE] = "",
 	[PARAM_ROOTWAIT] = "rootwait",
+	[PARAM_ROOTFLAGS] = "",
 #endif
 #ifdef SYSPART_INIT
 	[PARAM_READONLY] = "ro",
@@ -238,6 +240,7 @@ void c_main(void)
 				kernel_params[PARAM_ROOTDEV] =
 						"root=/dev/mmcblk0p1";
 				kernel_params[PARAM_ROOTTYPE] = "rootfstype=vfat";
+				kernel_params[PARAM_ROOTFLAGS] = "rootflags=umask=000";
 #endif
 			}
 		}
