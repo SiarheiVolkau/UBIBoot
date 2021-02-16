@@ -20,7 +20,7 @@ OBJCOPY = $(CROSS_COMPILE)objcopy
 OBJDUMP = $(CROSS_COMPILE)objdump
 NM = $(CROSS_COMPILE)nm
 
-CFLAGS	:= -Wall -Os -fno-pic -mno-abicalls -mno-check-zero-division -ffreestanding -flto
+CFLAGS	:= -Wall -Wextra -Os -fno-pic -mno-abicalls -mno-check-zero-division -ffreestanding -flto
 CFLAGS	+= $(CFLAGS_all)
 CPPFLAGS := -DBOARD_$(BOARD) -DJZ_VERSION=$(JZ_VERSION)
 LDFLAGS := -nostdlib -EL
@@ -41,7 +41,7 @@ OUTDIR	:= output/$(CONFIG)
 OBJS	:= utils.o mmc.o fat.o head.o uimage.o
 
 ifdef GC_FUNCTIONS
-	CFLAGS += -ffunction-sections
+	CFLAGS += -ffunction-sections -fdata-sections
 	LDFLAGS += -Wl,--gc-sections
 endif
 

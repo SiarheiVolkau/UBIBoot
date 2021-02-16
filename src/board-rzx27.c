@@ -415,27 +415,6 @@ static void init_smart_lcd_8230(void)
 	clear_slcd_screen();
 
 	__gpio_set_pin(GPIOC, 13);
-
-	/* Preparing Smart LCD controller to work in Linux */
-
-	/* RS pin */
-	__gpio_as_func(GPIOD, 19, 2);
-	/* #WR pin */
-	__gpio_as_func(GPIOD, 20, 2);
-	/* #RD pin */
-	__gpio_as_func(GPIOD, 18, 2);
-
-	/* DATA 7..0 */
-	__gpio_as_func_mask(GPIOD, 0xff, 2);
-
-	// Mux Smart pins, enable LCM mode
-	LCD_REG_CFG = BIT(31) | (0x0d) | BIT(23) | BIT(22) | BIT(21) | BIT(20);
-	LCD_REG_SCFG = 0x00004d02;
-	LCD_REG_SCTL = BIT(0);
-	while (LCD_REG_SSTAT != 0);
-
-
-	__gpio_clear_pin(GPIOC, 13);
 }
 #endif
 

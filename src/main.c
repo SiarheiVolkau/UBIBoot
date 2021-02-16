@@ -20,6 +20,8 @@
 #include "jz.h"
 #include "utils.h"
 
+#include "jz4740-gpio.h"
+
 /* Time how long UBIBoot takes to do its job.
  * Uses the JZ4770 OST, so won't work on JZ4740.
  */
@@ -253,13 +255,35 @@ void c_main(void)
 #endif
 	}
 
+#ifdef TRY_BOTH_MMCS
+	if (mmc_inited && !exec_addr) {
+		// internal mmc0 present
+		// try boot factory software
+		// original firmware is at 256kB offset on SD card.
+		#define ORIG_LD_ADDR (0x00800000)
+		// load 1M bytes into RAM from 512 blocks (256kB) offset on SD card.
+		if (!mmc_block_read(0, (void *) (KSEG1 + ORIG_LD_ADDR), 512, 2048)) {
+			SERIAL_PUTS("Trying load original firmware from SD0.\n");
+
+			// reset the LCD controller for proper reintialization
+			__gpio_clear_pin(GPIOD, 21);
+			udelay(1000);
+			__gpio_set_pin(GPIOD, 21);
+
+			// jump into firmware
+			void (*entry)(void) = (void (*)(void))(KSEG1 + ORIG_LD_ADDR);
+			entry();
+		}
+	}
+#endif
+
 	if (!mmc_inited || !exec_addr) {
 		SERIAL_PUTS("Unable to boot from SD."
 #ifdef USE_NAND
 					" Falling back to NAND."
 #endif
 					"\n");
-#ifndef USE_NAND
+#if !defined(USE_NAND) && !defined(TRY_BOTH_MMCS)
 		return;
 #endif
 	}
@@ -317,4 +341,3 @@ void c_main(void)
 	((kernel_main) exec_addr) (
 			ARRAY_SIZE(kernel_params), kernel_params, NULL, NULL );
 }
-
