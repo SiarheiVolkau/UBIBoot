@@ -227,7 +227,7 @@ static uint16_t UC8230_regValues[] = {
 	//After pin Reset wait at least 100ms
 	CMD_DELAY, 100, //at least 100ms
 	0x0046, 0x0002, //MTP Disable
-	0x0010, 0x1590, //SAP=1, BT=5, APE=1, AP=1
+	0x0010, 0x10b0, //SAP=1, BT=0, APE=1, AP=3
 	0x0011, 0x0227, //DC1=2, DC0=2, VC=7
 	0x0012, 0x80ff, //P5VMD=1, PON=7, VRH=15
 	0x0013, 0x9F31, //VDV=31, VCM=49
