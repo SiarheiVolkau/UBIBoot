@@ -22,9 +22,9 @@
 #include "jz4740-lcd.h"
 
 #define CDIV 1
-#define HDIV 3
-#define PDIV 3
-#define MDIV 3
+#define HDIV 2
+#define PDIV 2
+#define MDIV 2
 #define LDIV 3
 
 /* PLL output clock = EXTAL * NF / (NR * NO)
